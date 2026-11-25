@@ -21,3 +21,15 @@ Use Bun and anything that comes with it. Keep it as minimal as possible. Suggest
 - **Explanatory Comments**: Every new block of code gets a short, concise comment explaining what it is, why it's needed, and how it works. These comments exist so the user can learn how things work — the user may remove or edit them later, so don't treat them as permanent documentation.
 - **Blank Line Before Final Statement**: Always add a blank line before the final statement in a function. This visually separates the conclusion from the setup.
 
+## Context and Resources
+
+- `opencode/` is a gitignored copy of the OpenCode source, branch `dev`. Inspect it freely, and use the `file-search` subagent when possible. If missing, download it:
+
+  `git clone --depth 1 --branch dev https://github.com/anomalyco/opencode.git opencode && rm -rf opencode/.git`
+
+- The agent may ask the user to run a JS snippet in the Firefox console and paste the output.
+- The user may provide annotated screenshots; ask for one when a UI fix isn't landing.
+- No browser MCP, by design.
+- Bun's HTMLRewriter docs: https://bun.com/docs/runtime/html-rewriter
+
+

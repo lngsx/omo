@@ -111,3 +111,6 @@ dist
 
 # TernJS port file
 .tern-port
+
+# disposable copy of the OpenCode source
+opencode/
