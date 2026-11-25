@@ -1,0 +1,3 @@
+# Inject the payload inline into HTML instead of serving it as static files
+
+The payload (custom CSS/JS) is inlined into each HTML page's `<head>` as a `<style>` and `<script>` tag, with the script's sha256 hash added to the upstream Content-Security-Policy's `script-src` directive. Serving the payload as separate static files would require the proxy to own routes and intercept requests, and the browser would still refuse to run the script without a CSP hash or nonce — so inlining is both simpler and the only path the CSP permits. The accepted cost: payload edits require a proxy restart, because the files are read once at startup.
