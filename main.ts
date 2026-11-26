@@ -1,14 +1,15 @@
 // Reverse proxy in front of the OpenCode web UI.
 //
 // This file is the Bun server and nothing else: config, wiring, Bun.serve.
-// It does exactly two jobs:
+// It does three jobs:
 //   1. Forward every request to the real OpenCode server untouched.
-//   2. For HTML responses only, inject our own CSS/JS into <head>.
+//   2. Serve the payload itself at /__omo/* (never cached).
+//   3. For HTML responses only, inject a small loader into <head>.
 //
 // Everything else (JS bundles, JSON, SSE streams) streams straight through,
 // so the app keeps working exactly as if the proxy were not there.
 
-import { allowInlineScript, buildInjectedHead, cspHash, isHtml } from "./lib/helpers.ts";
+import { addCspSource, buildInjectedHead, buildLoader, cspHash, isHtml, payloadVersion } from "./lib/helpers.ts";
 import { forward } from "./lib/core.ts";
 import { appCss, appJs } from "./payload-registry.ts";
 
@@ -44,27 +45,50 @@ const STRIP_RESPONSE_HEADERS = [
 // Injected payload
 // ---------------------------------------------------------------------------
 
-// The assets themselves live in payload/. Here we just build
-// the two derived values once at startup: the head snippet to append, and the
-// CSP hash that lets the browser run our inline script.
-const injectedHead = buildInjectedHead(appJs, appCss);
-const scriptHash = cspHash(appJs);
+// The assets themselves live in payload/. Here we derive, once at startup:
+// - version: a label for this exact payload, served alongside it,
+// - payloadJs: the payload prefixed with that version, so the running page can
+//   compare what it loaded against what the server has now,
+// - loader: the inline script that pulls both files from /__omo/*,
+// - loaderHash: the CSP hash that lets the browser run that inline script.
+const version = payloadVersion(appJs, appCss);
+const payloadJs = `const OMO_VERSION=${JSON.stringify(version)};${appJs}`;
+const loader = buildLoader(version);
+const injectedHead = buildInjectedHead(loader);
+const loaderHash = cspHash(loader);
 
 // ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
 
+// Serve one of our own payload files. no-store is the whole trick: the page
+// asks for it on every document load, and nothing (browser or service worker
+// cache) may answer with an older copy.
+function omoAsset(type: string, body: string): Response {
+  return new Response(body, {
+    headers: { "content-type": type, "cache-control": "no-store" },
+  });
+}
+
 const server = Bun.serve({
   port: PORT,
 
   async fetch(req) {
-    // 1. Always ask upstream first; the proxy has no routes of its own.
+    // 0. Our own payload routes. Checked before forwarding so omo can answer
+    //    them itself; everything else still has no route of its own. The
+    //    loader in <head> always requests these exact paths.
+    const { pathname } = new URL(req.url);
+    if (pathname === "/__omo/app.css") return omoAsset("text/css; charset=utf-8", appCss);
+    if (pathname === "/__omo/app.js") return omoAsset("text/javascript; charset=utf-8", payloadJs);
+    if (pathname === "/__omo/version") return omoAsset("text/plain; charset=utf-8", version);
+
+    // 1. Everything else goes to upstream first.
     const upstream = await forward(req, UPSTREAM);
 
     // 2. Non-HTML responses pass through untouched (and stay streamed).
     if (!isHtml(upstream)) return upstream;
 
-    // 3. HTML: rewrite the body, injecting our styles and script before </head>.
+    // 3. HTML: rewrite the body, appending our loader before </head>.
     //    We work on a Response (not a string) so HTMLRewriter can stream and so
     //    async handlers would be allowed later.
     const rewritten = new HTMLRewriter()
@@ -80,9 +104,15 @@ const server = Bun.serve({
     for (const name of STRIP_RESPONSE_HEADERS) rewritten.headers.delete(name);
     rewritten.headers.set("cache-control", "no-store");
 
-    // 5. Let the browser run our inline script by adding its hash to the CSP.
+    // 5. Let the browser use our injected code: the inline loader needs its
+    //    hash, and both the external script and stylesheet ship from 'self'.
     const csp = rewritten.headers.get("content-security-policy");
-    if (csp) rewritten.headers.set("content-security-policy", allowInlineScript(csp, scriptHash));
+    if (csp) {
+      let next = addCspSource(csp, "script-src", "'self'");
+      next = addCspSource(next, "script-src", `'sha256-${loaderHash}'`);
+      next = addCspSource(next, "style-src", "'self'");
+      rewritten.headers.set("content-security-policy", next);
+    }
 
     return rewritten;
   },

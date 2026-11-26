@@ -2,12 +2,31 @@
 // No I/O here on purpose: the server reads the files and passes the text in,
 // which keeps these functions easy to reason about and reuse.
 
-// Build the exact HTML we append to <head>: our CSS then our JS, inlined so
-// the browser does not need a second request per file.
-export function buildInjectedHead(js: string, css: string): string {
-  // NOTE: if js ever contains the literal text "</script>", escape it as
-  // "<\/script>" so the HTML parser does not end the tag early.
-  return ["<style>" + css + "</style>", "<script>" + js + "</script>"].join("");
+// A short label for the current payload (CSS + JS together). omo stamps this
+// into both the served payload and the <script> tag, so the running page can
+// tell whether the payload it loaded is still the one the server has.
+export function payloadVersion(js: string, css: string): string {
+  return new Bun.CryptoHasher("sha256").update(css + js).digest("hex").slice(0, 8);
+}
+
+// The tiny inline script we put in <head>. It is deliberately stable: it only
+// records the version and pulls the real payload from omo's own routes, so the
+// browser (or a precaching service worker) can cache it forever without ever
+// freezing the payload itself.
+// NOTE: if this ever contains the literal text "</script>", escape it as
+// "<\/script>" so the HTML parser does not end the tag early.
+export function buildLoader(version: string): string {
+  return [
+    `window.OMO_VERSION=${JSON.stringify(version)};`,
+    `{const c=document.createElement("link");c.rel="stylesheet";c.href="/__omo/app.css";document.head.appendChild(c)}`,
+    `{const s=document.createElement("script");s.src="/__omo/app.js";document.head.appendChild(s)}`,
+  ].join("");
+}
+
+// Build the exact HTML we append to <head>. Only the loader is inline; the
+// payload arrives from /__omo/* as separate, never-cached requests.
+export function buildInjectedHead(loaderJs: string): string {
+  return "<script>" + loaderJs + "</script>";
 }
 
 // OpenCode sends a Content-Security-Policy that only allows scripts from 'self'
@@ -24,27 +43,19 @@ export function isHtml(response: Response): boolean {
   return type.includes("text/html");
 }
 
-// Add our script hash to the script-src directive of a CSP string.
-// A CSP hash must be written as 'sha256-<base64>'. If script-src is missing we
-// append a new directive; otherwise we extend the existing one.
-export function allowInlineScript(csp: string, hash: string): string {
-  const token = `'sha256-${hash}'`;
-  if (csp.includes(token)) return csp;
-
+// Add one source token (a hash, 'self', a host) to a CSP directive, creating
+// the directive when it is missing. Idempotent, so callers can chain it.
+export function addCspSource(csp: string, directive: string, source: string): string {
   // Split into individual directives, dropping empties.
   const directives = csp
     .split(";")
     .map((d) => d.trim())
     .filter(Boolean);
 
-  // Make sure a script-src directive exists, defaulting to 'self'.
-  const hasScriptSrc = directives.some((d) => d.startsWith("script-src"));
-  const base = hasScriptSrc ? directives : [...directives, "script-src 'self'"];
+  const existing = directives.find((d) => d === directive || d.startsWith(directive + " "));
+  if (!existing) return [...directives, `${directive} ${source}`].join("; ");
+  if (existing.split(/\s+/).includes(source)) return directives.join("; ");
 
-  // Append our hash to that directive, then join back into a CSP string.
-  return base
-    .map(function (d) {
-      return d.startsWith("script-src") ? `${d} ${token}` : d;
-    })
-    .join("; ");
+  // Append the token to that one directive, then join back into a CSP string.
+  return directives.map((d) => (d === existing ? `${d} ${source}` : d)).join("; ");
 }
