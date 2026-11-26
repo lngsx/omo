@@ -5,3 +5,73 @@ a, button { cursor: pointer; }
 
 /* A nice little touch for disabled buttons */
 button:disabled { cursor: not-allowed; }
+
+/* ── Collapsible composer (touch devices only) ───────────────────────────────
+   payload/app.js folds the session composer on phones and puts one button in
+   OpenCode's touch bar. `data-omo-composer` on <html> carries the state; when
+   the attribute is missing (desktop, landing screen) nothing below applies. */
+
+/* Folded: the form steps aside. The wrapper around it also holds the permission
+   and question docks, so hiding the form alone keeps those visible. */
+html[data-omo-composer="collapsed"] [data-component="session-composer-dock"] [data-slot="composer-face"] form[data-component="composer"] {
+  display: none;
+}
+
+/* The bar keeps only our pill, and loses 12px of its height. */
+html[data-omo-composer="collapsed"] [data-slot="composer-touch-bar"] > :not([data-omo-toggle]) {
+  display: none;
+}
+
+html[data-omo-composer="collapsed"] [data-slot="composer-touch-bar"] {
+  height: 2.75rem;
+}
+
+/* The injected button: one node, two faces picked by the state above. */
+[data-omo-toggle] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  height: 2.25rem;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* Folded it is the whole bar: a quiet, full-width prompt. */
+html[data-omo-composer="collapsed"] [data-omo-toggle] {
+  flex: 1;
+  justify-content: flex-start;
+  padding-inline: 0.75rem;
+  background: var(--v2-background-bg-layer-01, rgb(128 128 128 / 0.12));
+  color: var(--v2-text-text-faint, currentColor);
+}
+
+html[data-omo-composer="collapsed"] [data-omo-toggle] span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Open it is a small chevron at the end of the bar. */
+html[data-omo-composer="open"] [data-omo-toggle] {
+  width: 1.75rem;
+  flex: none;
+  color: var(--v2-text-text-faint, currentColor);
+}
+
+html[data-omo-composer="open"] [data-omo-toggle]:hover {
+  background: var(--v2-background-bg-layer-01, rgb(128 128 128 / 0.12));
+}
+
+/* Only the face that matches the state is drawn. */
+html[data-omo-composer="collapsed"] [data-omo-face="collapse"],
+html[data-omo-composer="open"] [data-omo-face="composer"] {
+  display: none;
+}

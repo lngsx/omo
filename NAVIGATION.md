@@ -83,20 +83,26 @@ files:
   - - payload/app.js
     - Injected JavaScript, served at /__omo/app.js
     - light
-    - purpose: The JS half of the payload. On foregrounding, compares its baked-in version with /__omo/version and silently reloads once if omo has a newer payload.
+    - purpose: The JS half of the payload. Folds the session composer into a compact bar on touch devices, and on foregrounding compares its baked-in version with /__omo/version, silently reloading once if omo has a newer payload.
       key_concepts:
+        - collapsible composer on touch devices
+        - touch bar as the phone detector (coarse pointer, no width query)
+        - folding only the composer form, never the wrapper holding permission docks
+        - MutationObserver gated to composer-related mutations
+        - empty-editor rules for auto-folding
         - visibilitychange version check
         - one reload per session cap (sessionStorage)
-        - mobile UI enhancement
       key_exports:
         - inline script body (consumed via payload-registry.ts)
 
   - - payload/app.css
     - Payload stylesheet, served at /__omo/app.css
     - light
-    - purpose: The CSS half of the payload. First rule: pointer cursor on links/buttons, not-allowed on disabled buttons.
+    - purpose: The CSS half of the payload. First rule: pointer cursor on links/buttons, not-allowed on disabled buttons. Then the folded and open looks of the collapsible composer, keyed off `data-omo-composer` on <html> so nothing applies on desktop or the landing screen.
       key_concepts:
-        - mobile UI enhancement
+        - state carried by a single attribute on <html>
+        - hiding the composer form without hiding the docks beside it
+        - touch-bar restyling, including the app's own sprite icons
       key_exports:
         - inline style body (consumed via payload-registry.ts)
 
