@@ -1,1 +1,7 @@
-/* Styles injected into the OpenCode web UI. Currently empty on purpose. */
+/* Styles injected into the OpenCode web UI. */
+
+/* Hand cursor for all clickable things. It makes more sense to me this way. */
+a, button { cursor: pointer; }
+
+/* A nice little touch for disabled buttons */
+button:disabled { cursor: not-allowed; }
