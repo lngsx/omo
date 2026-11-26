@@ -7,7 +7,8 @@ Listens on **6969**, symmetric, unforgettable, lickable, and *definitely* keeps 
 ## What it does
 
 - Forwards everything to `127.0.0.1:49374`, untouched.
-- Rewrites only HTML: inlines `payload/app.css` and `payload/app.js` into `<head>`.
+- Serves the payload at `/__omo/app.css`, `/__omo/app.js`, `/__omo/version` (never cached).
+- Rewrites only HTML: appends a tiny loader to `<head>` that pulls those files.
 - Keeps the CSP and `Host` happy, so auth and streaming just work.
 
 ## Run

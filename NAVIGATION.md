@@ -21,9 +21,10 @@ files:
   - - main.ts
     - Bun server and request pipeline
     - light
-    - purpose: Entry point. Configures upstream/port, then runs the whole pipeline per request — forward to upstream, inject payload into HTML responses, fix headers, patch CSP.
+    - purpose: Entry point. Configures upstream/port, serves the payload routes (/__omo/*, no-store), and runs the pipeline per request — forward to upstream, append the loader to HTML responses, fix headers, patch CSP.
       key_concepts:
         - reverse proxy
+        - payload routes owned by omo
         - HTMLRewriter streaming transformation
         - response header stripping (content-length, content-encoding, hop-by-hop)
         - CSP hash whitelisting
@@ -51,17 +52,20 @@ files:
   - - lib/helpers.ts
     - Pure injection helpers
     - light
-    - purpose: Stateless helpers for building the injected head snippet and patching the CSP string. No I/O by design — callers pass text in.
+    - purpose: Stateless helpers for the payload version label, the inline loader snippet, and patching the CSP string. No I/O by design — callers pass text in.
       key_concepts:
-        - head injection snippet building
+        - stable inline loader (must never change)
+        - payload version derived from CSS+JS
         - script-early-termination escaping (</script> caveat noted inline)
         - CSP sha256 hash format ('sha256-<base64>')
-        - script-src directive patching
+        - idempotent CSP directive patching
       key_exports:
-        - buildInjectedHead(js, css)
+        - payloadVersion(js, css)
+        - buildLoader(version)
+        - buildInjectedHead(loaderJs)
         - cspHash(js)
         - isHtml(response)
-        - allowInlineScript(csp, hash)
+        - addCspSource(csp, directive, source)
 
   - - payload-registry.ts
     - Startup loader for payload assets
@@ -77,18 +81,20 @@ files:
         - payload/app.js
 
   - - payload/app.js
-    - Injected JavaScript (placeholder)
+    - Injected JavaScript, served at /__omo/app.js
     - light
-    - purpose: The JS half of the payload, appended to every OpenCode page. Currently an intentional placeholder — UI enhancement work lands here.
+    - purpose: The JS half of the payload. On foregrounding, compares its baked-in version with /__omo/version and silently reloads once if omo has a newer payload.
       key_concepts:
+        - visibilitychange version check
+        - one reload per session cap (sessionStorage)
         - mobile UI enhancement
       key_exports:
         - inline script body (consumed via payload-registry.ts)
 
   - - payload/app.css
-    - Injected stylesheet (placeholder)
+    - Payload stylesheet, served at /__omo/app.css
     - light
-    - purpose: The CSS half of the payload, appended to every OpenCode page. Currently an intentional placeholder.
+    - purpose: The CSS half of the payload. First rule: pointer cursor on links/buttons, not-allowed on disabled buttons.
       key_concepts:
         - mobile UI enhancement
       key_exports:
@@ -123,15 +129,15 @@ files:
   - - CONTEXT.md
     - Project glossary
     - light
-    - purpose: Defines the project's canonical vocabulary — omo, Upstream, Payload, Injection, Pass-through — and the words to avoid instead.
+    - purpose: Defines the project's canonical vocabulary — omo, Upstream, Payload, Loader, Injection, Pass-through — and the words to avoid instead.
 
-  - - docs/adr/0001-inline-payloads-with-csp-hash.md
-    - ADR: inline payload injection with CSP hash
+  - - docs/adr/0001-payload-served-from-proxy.md
+    - ADR: payload served from proxy routes
     - light
-    - purpose: Records why the payload is inlined into HTML (CSP blocks external scripts; inlining avoids proxy-owned routes) and the accepted restart-to-reload cost.
+    - purpose: Records why the payload is served from /__omo/* with no-store instead of inlined — a precaching service worker freezes inlined HTML, so payload edits would never reach an installed PWA.
       key_concepts:
-        - CSP script hashes
-        - inline injection vs static asset serving
+        - service worker precache freezing HTML
+        - stable inline loader + CSP hash
 
   - - docs/adr/0002-keep-host-header-untouched.md
     - ADR: Host header passthrough

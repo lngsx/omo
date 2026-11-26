@@ -13,13 +13,17 @@ The real OpenCode server that omo forwards every request to. There is exactly on
 _Avoid_: backend, origin, target
 
 **Payload**:
-The custom CSS and JavaScript that omo injects into OpenCode's pages. It is content owned by this project, kept separate from the proxying machinery.
+The custom CSS and JavaScript that omo serves to OpenCode's pages. It is content owned by this project, kept separate from the proxying machinery.
 _Avoid_: injection code, patch, asset
 
+**Loader**:
+The short inline script omo appends to every HTML page. It only records the payload version and requests the payload files; it never changes, because a precaching service worker may freeze it forever.
+_Avoid_: bootstrap, shim, snippet
+
 **Injection**:
-The one modification omo makes to traffic: appending the payload to an HTML page as it streams through. Applies to HTML responses only.
+The one modification omo makes to upstream HTML: appending the loader to the page as it streams through. Applies to HTML responses only.
 _Avoid_: rewriting, patching
 
 **Pass-through**:
-A response forwarded to the client byte-for-byte as the upstream sent it. Everything that is not HTML is pass-through.
+A response forwarded to the client byte-for-byte as the upstream sent it. Everything that is not HTML and not a payload route is pass-through.
 _Avoid_: untouched response, direct forwarding
