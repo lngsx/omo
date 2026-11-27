@@ -9,7 +9,8 @@
 // Everything else (JS bundles, JSON, SSE streams) streams straight through,
 // so the app keeps working exactly as if the proxy were not there.
 
-import { addCspSource, buildBrowserLoader, buildInjectedHead, cspHash, isHtml, payloadVersion } from "./lib/helpers.ts";
+import { addCspSource, isHtml } from "./lib/helpers.ts";
+import { preparePayload } from "./lib/payload-preparation.ts";
 import { forward } from "./lib/core.ts";
 import { appCss, appJs } from "./payload-registry.ts";
 
@@ -45,17 +46,8 @@ const STRIP_RESPONSE_HEADERS = [
 // Injected payload
 // ---------------------------------------------------------------------------
 
-// The assets themselves live in payload/. Here we derive, once at startup:
-// - version: a label for this exact payload, served alongside it,
-// - payloadJs: the payload prefixed with that version, so the running page can
-//   compare what it loaded against what the server has now,
-// - browserLoader: the inline script that pulls both files from /__omo/*,
-// - browserLoaderHash: the CSP hash that lets the browser run that script.
-const version = payloadVersion(appJs, appCss);
-const payloadJs = `const OMO_VERSION=${JSON.stringify(version)};${appJs}`;
-const browserLoader = buildBrowserLoader();
-const injectedHead = buildInjectedHead(browserLoader);
-const browserLoaderHash = cspHash(browserLoader);
+// Prepare the reusable Payload values once, keeping derivation out of the server wiring.
+const { version, payloadJs, injectedHead, browserLoaderHash } = preparePayload(appCss, appJs);
 
 // ---------------------------------------------------------------------------
 // Server

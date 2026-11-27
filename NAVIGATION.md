@@ -21,7 +21,7 @@ files:
   - - main.ts
     - Bun server and request pipeline
     - light
-    - purpose: Entry point. Configures upstream/port, serves the payload routes (/__omo/*, no-store), and runs the pipeline per request — forward to upstream, append the Browser Loader to HTML responses, fix headers, patch CSP.
+    - purpose: Entry point. Configures upstream/port, prepares the Payload, serves its routes (/__omo/*, no-store), and runs the request pipeline — forwarding upstream and injecting the Browser Loader into HTML responses.
       key_concepts:
         - reverse proxy
         - payload routes owned by omo
@@ -35,7 +35,20 @@ files:
       reads_from:
         - lib/helpers.ts
         - lib/core.ts
+        - lib/payload-preparation.ts
         - payload-registry.ts
+
+  - - lib/payload-preparation.ts
+    - Startup Payload preparation
+    - light
+    - purpose: Derives the version, versioned JavaScript, Browser Loader markup, and CSP hash once from CSS/JS text already loaded by payload-registry.ts. Performs no file I/O.
+      key_concepts:
+        - startup-only preparation
+        - derived values shared by payload routes and HTML injection
+      key_exports:
+        - preparePayload(appCss, appJs) → { version, payloadJs, injectedHead, browserLoaderHash }
+      reads_from:
+        - lib/helpers.ts
 
   - - lib/core.ts
     - Request forwarding logic
