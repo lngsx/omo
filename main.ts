@@ -49,6 +49,13 @@ function omoAsset(type: string, body: string): Response {
 const server = Bun.serve({
   port: PORT,
 
+  // Bun closes a connection that sits idle for 10s by default. OpenCode's event
+  // stream (SSE) is quiet between events and only proves it is alive with a
+  // heartbeat every 15s — so the default would kill the stream just before each
+  // heartbeat, forever. 0 disables idle closing; the upstream still drops the
+  // connection when the stream really ends.
+  idleTimeout: 0,
+
   // Our own payload routes. Bun matches these BEFORE fetch ever runs, so the
   //    proxy below never sees them. Handlers (not static Responses) on purpose:
   //    static routes get Bun's automatic ETag/304 caching, and this payload's
