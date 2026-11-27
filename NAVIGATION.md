@@ -21,7 +21,7 @@ files:
   - - main.ts
     - Bun server and request pipeline
     - light
-    - purpose: Entry point. Configures upstream/port, serves the payload routes (/__omo/*, no-store), and runs the pipeline per request — forward to upstream, append the loader to HTML responses, fix headers, patch CSP.
+    - purpose: Entry point. Configures upstream/port, serves the payload routes (/__omo/*, no-store), and runs the pipeline per request — forward to upstream, append the Browser Loader to HTML responses, fix headers, patch CSP.
       key_concepts:
         - reverse proxy
         - payload routes owned by omo
@@ -52,17 +52,17 @@ files:
   - - lib/helpers.ts
     - Pure injection helpers
     - light
-    - purpose: Stateless helpers for the payload version label, the inline loader snippet, and patching the CSP string. No I/O by design — callers pass text in.
+    - purpose: Stateless helpers for the payload version label, the inline Browser Loader, and patching the CSP string. No I/O by design — callers pass text in.
       key_concepts:
-        - stable inline loader (must never change)
+        - Browser Loader stays the same across Payload versions; cached HTML may retain older code after edits
         - payload version derived from CSS+JS
         - script-early-termination escaping (</script> caveat noted inline)
         - CSP sha256 hash format ('sha256-<base64>')
         - idempotent CSP directive patching
       key_exports:
         - payloadVersion(js, css)
-        - buildLoader(version)
-        - buildInjectedHead(loaderJs)
+        - buildBrowserLoader()
+        - buildInjectedHead(browserLoaderJs)
         - cspHash(js)
         - isHtml(response)
         - addCspSource(csp, directive, source)
@@ -135,7 +135,7 @@ files:
   - - CONTEXT.md
     - Project glossary
     - light
-    - purpose: Defines the project's canonical vocabulary — omo, Upstream, Payload, Loader, Injection, Pass-through — and the words to avoid instead.
+    - purpose: Defines the project's canonical vocabulary — omo, Upstream, Payload, Browser Loader, Injection, Pass-through — and the words to avoid instead.
 
   - - docs/adr/0001-payload-served-from-proxy.md
     - ADR: payload served from proxy routes

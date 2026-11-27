@@ -4,12 +4,12 @@
 // It does three jobs:
 //   1. Forward every request to the real OpenCode server untouched.
 //   2. Serve the payload itself at /__omo/* (never cached).
-//   3. For HTML responses only, inject a small loader into <head>.
+//   3. For HTML responses only, inject the Browser Loader into <head>.
 //
 // Everything else (JS bundles, JSON, SSE streams) streams straight through,
 // so the app keeps working exactly as if the proxy were not there.
 
-import { addCspSource, buildInjectedHead, buildLoader, cspHash, isHtml, payloadVersion } from "./lib/helpers.ts";
+import { addCspSource, buildBrowserLoader, buildInjectedHead, cspHash, isHtml, payloadVersion } from "./lib/helpers.ts";
 import { forward } from "./lib/core.ts";
 import { appCss, appJs } from "./payload-registry.ts";
 
@@ -49,13 +49,13 @@ const STRIP_RESPONSE_HEADERS = [
 // - version: a label for this exact payload, served alongside it,
 // - payloadJs: the payload prefixed with that version, so the running page can
 //   compare what it loaded against what the server has now,
-// - loader: the inline script that pulls both files from /__omo/*,
-// - loaderHash: the CSP hash that lets the browser run that inline script.
+// - browserLoader: the inline script that pulls both files from /__omo/*,
+// - browserLoaderHash: the CSP hash that lets the browser run that script.
 const version = payloadVersion(appJs, appCss);
 const payloadJs = `const OMO_VERSION=${JSON.stringify(version)};${appJs}`;
-const loader = buildLoader(version);
-const injectedHead = buildInjectedHead(loader);
-const loaderHash = cspHash(loader);
+const browserLoader = buildBrowserLoader();
+const injectedHead = buildInjectedHead(browserLoader);
+const browserLoaderHash = cspHash(browserLoader);
 
 // ---------------------------------------------------------------------------
 // Server
@@ -76,7 +76,7 @@ const server = Bun.serve({
   async fetch(req) {
     // 0. Our own payload routes. Checked before forwarding so omo can answer
     //    them itself; everything else still has no route of its own. The
-    //    loader in <head> always requests these exact paths.
+    //    Browser Loader in <head> always requests these exact paths.
     const { pathname } = new URL(req.url);
     if (pathname === "/__omo/app.css") return omoAsset("text/css; charset=utf-8", appCss);
     if (pathname === "/__omo/app.js") return omoAsset("text/javascript; charset=utf-8", payloadJs);
@@ -88,7 +88,7 @@ const server = Bun.serve({
     // 2. Non-HTML responses pass through untouched (and stay streamed).
     if (!isHtml(upstream)) return upstream;
 
-    // 3. HTML: rewrite the body, appending our loader before </head>.
+    // 3. HTML: rewrite the body, appending the Browser Loader before </head>.
     //    We work on a Response (not a string) so HTMLRewriter can stream and so
     //    async handlers would be allowed later.
     const rewritten = new HTMLRewriter()
@@ -104,12 +104,12 @@ const server = Bun.serve({
     for (const name of STRIP_RESPONSE_HEADERS) rewritten.headers.delete(name);
     rewritten.headers.set("cache-control", "no-store");
 
-    // 5. Let the browser use our injected code: the inline loader needs its
+    // 5. Let the browser use our injected code: the Browser Loader needs its
     //    hash, and both the external script and stylesheet ship from 'self'.
     const csp = rewritten.headers.get("content-security-policy");
     if (csp) {
       let next = addCspSource(csp, "script-src", "'self'");
-      next = addCspSource(next, "script-src", `'sha256-${loaderHash}'`);
+      next = addCspSource(next, "script-src", `'sha256-${browserLoaderHash}'`);
       next = addCspSource(next, "style-src", "'self'");
       rewritten.headers.set("content-security-policy", next);
     }

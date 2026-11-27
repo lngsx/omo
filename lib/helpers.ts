@@ -3,30 +3,28 @@
 // which keeps these functions easy to reason about and reuse.
 
 // A short label for the current payload (CSS + JS together). omo stamps this
-// into both the served payload and the <script> tag, so the running page can
+// into the served JavaScript, so the running page can
 // tell whether the payload it loaded is still the one the server has.
 export function payloadVersion(js: string, css: string): string {
   return new Bun.CryptoHasher("sha256").update(css + js).digest("hex").slice(0, 8);
 }
 
-// The tiny inline script we put in <head>. It is deliberately stable: it only
-// records the version and pulls the real payload from omo's own routes, so the
-// browser (or a precaching service worker) can cache it forever without ever
-// freezing the payload itself.
+// The Browser Loader requests the Payload's CSS and JavaScript. Its output
+// does not vary with the Payload version, but cached HTML may keep an older
+// copy after the Loader changes.
 // NOTE: if this ever contains the literal text "</script>", escape it as
 // "<\/script>" so the HTML parser does not end the tag early.
-export function buildLoader(version: string): string {
+export function buildBrowserLoader(): string {
   return [
-    `window.OMO_VERSION=${JSON.stringify(version)};`,
     `{const c=document.createElement("link");c.rel="stylesheet";c.href="/__omo/app.css";document.head.appendChild(c)}`,
     `{const s=document.createElement("script");s.src="/__omo/app.js";document.head.appendChild(s)}`,
   ].join("");
 }
 
-// Build the exact HTML we append to <head>. Only the loader is inline; the
+// Build the exact HTML we append to <head>. Only the Browser Loader is inline; the
 // payload arrives from /__omo/* as separate, never-cached requests.
-export function buildInjectedHead(loaderJs: string): string {
-  return "<script>" + loaderJs + "</script>";
+export function buildInjectedHead(browserLoaderJs: string): string {
+  return "<script>" + browserLoaderJs + "</script>";
 }
 
 // OpenCode sends a Content-Security-Policy that only allows scripts from 'self'
