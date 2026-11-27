@@ -102,6 +102,9 @@ files:
         - submitting by clicking [data-action="composer-submit"] instead of calling app internals
         - suggestion popover defers the key to the app; touch keyboards unchanged
         - collapsible composer on touch devices
+        - omo bar (data-omo-bar) takes turns with OpenCode's touch bar; the composer toggle is its first child
+        - one toggle node re-parented by state between the omo bar and OpenCode's bar
+        - inline chevron-up path because OpenCode's sprite has no chevron-up symbol
         - touch bar as the phone detector (coarse pointer, no width query)
         - folding only the composer form, never the wrapper holding permission docks
         - MutationObserver gated to composer-related mutations
@@ -118,6 +121,8 @@ files:
       key_concepts:
         - state carried by a single attribute on <html>
         - hiding the composer form without hiding the docks beside it
+        - omo bar shown only while folded, carrying the docked bar's background, top border, and safe-area inset
+        - one toggle button, two faces picked by state
         - touch-bar restyling, including the app's own sprite icons
       key_exports:
         - inline style body (consumed via payload-registry.ts)

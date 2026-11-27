@@ -34,16 +34,25 @@ document.addEventListener("visibilitychange", async () => {
 // coarse)`), so the bar's presence is our phone test: no bar, no folding, and a
 // narrow desktop window is left alone.
 //
-// Folded, we hide the session composer form and the bar's own buttons, and our
-// button fills the bar as a compact prompt. Tapping it brings the form back.
-// The state lives on <html> so the CSS can switch both looks from one attribute.
+// Folded, we hide the session composer form and OpenCode's whole touch bar, and
+// our own bar (the omo bar) takes the bottom edge with one prompt button that
+// opens the composer again. Open, our bar is gone and theirs is back untouched.
+// The two bars take turns. The state lives on <html> so the CSS can switch both
+// looks from one attribute.
 
 const STATE_ATTRIBUTE = "data-omo-composer";
-const TOGGLE_ATTRIBUTE = "data-omo-toggle";
+
+// Our own bar and the toggle that lives in it. They take turns with OpenCode's
+// touch bar: folded, ours is on screen and theirs is hidden; open, the reverse.
+// The bar and the button each get an attribute so CSS from either state can
+// find them by a plain selector instead of a class we would have to keep in sync.
+const BAR_ATTRIBUTE = "data-omo-bar";
+const TOGGLE_ATTRIBUTE = "data-omo-composer-toggle";
 
 // OpenCode's own hooks. The form is the only thing we hide: its wrapper also
 // holds the permission and question docks, which must stay on screen.
 const TOUCH_BAR = '[data-slot="composer-touch-bar"]';
+const OMO_BAR = `[${BAR_ATTRIBUTE}]`;
 const SESSION_DOCK = '[data-component="session-composer-dock"]';
 const COMPOSER = 'form[data-component="composer"]';
 const COMPOSER_FORM = `[data-slot="composer-face"] ${COMPOSER}`;
@@ -57,16 +66,30 @@ let bar;
 let dock;
 let form;
 
-// The one node we add to the bar. Both faces live in the CSS: a full-width
-// "open the composer" pill when folded, a small chevron when it is open. The
-// icons come from OpenCode's sprite, so the button matches the bar's own.
-const toggle = document.createElement("button");
+// Our bar. It sits directly beside OpenCode's touch bar and holds our quick
+// actions; the composer toggle is its first and, for now, only child. It starts
+// empty and stays hidden by CSS until folding applies, so the app never sees an
+// empty strip on a desktop or the landing screen.
+const omoBar = document.createElement("div");
 
-toggle.type = "button";
-toggle.setAttribute(TOGGLE_ATTRIBUTE, "");
-toggle.innerHTML = `
-  <span data-omo-face="composer">Ask anything…</span>
-  <svg data-omo-face="composer" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="#opencode-v2-icon-chevron-up"></use></svg>
+omoBar.setAttribute(BAR_ATTRIBUTE, "");
+
+// The one button we add. Both faces live in the CSS: a regular-size "Toggle
+// composer" prompt with a chevron-up when folded, a small chevron-down when it
+// is open. One node, two homes — reconcile/apply move it between our bar and
+// theirs, so moving it keeps its listeners and its identity.
+const omoComposerToggle = document.createElement("button");
+
+omoComposerToggle.type = "button";
+omoComposerToggle.setAttribute(TOGGLE_ATTRIBUTE, "");
+
+// The chevron-up is drawn inline, not taken from OpenCode's sprite: their sprite
+// has chevron-down/left/right but no "up", so referencing a chevron-up symbol
+// would silently render nothing. The path below is the same artwork as their
+// chevron-down, minus the 180° rotation that makes it point down.
+omoComposerToggle.innerHTML = `
+  <span data-omo-face="composer">Toggle composer</span>
+  <svg data-omo-face="composer" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.5 9.5L8 6.5L11.5 9.5" stroke-linecap="round" stroke-linejoin="round" stroke="currentColor"/></svg>
   <svg data-omo-face="collapse" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="#opencode-v2-icon-chevron-down"></use></svg>
 `;
 
@@ -85,8 +108,15 @@ function apply() {
     return;
   }
 
+  // One button, two homes. Folded it lives in our bar as the prompt; open it
+  // returns to OpenCode's bar as the small chevron. Appending a connected node
+  // moves it, listeners intact, so this is cheaper and safer than cloning.
+  const home = expanded ? bar : omoBar;
+
+  if (omoComposerToggle.parentElement !== home) home.append(omoComposerToggle);
+
   if (root.getAttribute(STATE_ATTRIBUTE) !== value) root.setAttribute(STATE_ATTRIBUTE, value);
-  if (toggle.getAttribute("aria-label") !== label) toggle.setAttribute("aria-label", label);
+  if (omoComposerToggle.getAttribute("aria-label") !== label) omoComposerToggle.setAttribute("aria-label", label);
 }
 
 // Fold or unfold. Folding hides the editor, so its focus goes first or the
@@ -122,8 +152,8 @@ function foldIfEmpty() {
 
 // Fold and unfold on tap. preventDefault keeps focus where it is until our own
 // focus handling runs, the same trick OpenCode's bar buttons use.
-toggle.addEventListener("mousedown", (event) => event.preventDefault());
-toggle.addEventListener("click", () => setExpanded(!expanded));
+omoComposerToggle.addEventListener("mousedown", (event) => event.preventDefault());
+omoComposerToggle.addEventListener("click", () => setExpanded(!expanded));
 
 // A send ends the turn of typing: fold back down so the reply gets the screen.
 // Deferred a task, because the app clears the editor inside its own click handler.
@@ -144,7 +174,7 @@ document.addEventListener("focusout", (event) => {
     if (!expanded) return;
 
     const active = document.activeElement;
-    if (active && (active.closest(SESSION_DOCK) || active.closest(TOUCH_BAR))) return;
+    if (active && (active.closest(SESSION_DOCK) || active.closest(TOUCH_BAR) || active.closest(OMO_BAR))) return;
 
     foldIfEmpty();
   }, 0);
@@ -157,8 +187,13 @@ function reconcile() {
   if (!bar?.isConnected) bar = document.querySelector(TOUCH_BAR);
 
   // No bar: a desktop, or OpenCode unmounted the composer (a permission prompt
-  // takes its place). Leave the state alone, so a remount comes back folded.
-  if (!bar) return;
+  // takes its place). Leave the state alone, so a remount comes back folded,
+  // but take our bar off screen: it would otherwise outlive their bar and sit
+  // there with nothing to fold.
+  if (!bar) {
+    omoBar.remove();
+    return;
+  }
 
   if (!dock?.isConnected) dock = document.querySelector(SESSION_DOCK);
 
@@ -166,7 +201,8 @@ function reconcile() {
   // dock. It is the only thing on that page, so it keeps its size.
   if (!dock) {
     expanded = false;
-    toggle.remove();
+    omoComposerToggle.remove();
+    omoBar.remove();
     document.documentElement.removeAttribute(STATE_ATTRIBUTE);
     return;
   }
@@ -178,9 +214,12 @@ function reconcile() {
     expanded = false;
   }
 
-  // OpenCode re-portals the bar on navigation, taking our button with it.
-  if (toggle.parentElement !== bar) bar.append(toggle);
+  // Keep our bar parked right before theirs. OpenCode re-portals the touch bar
+  // on navigation, which would strand our bar wherever it was, so we re-anchor
+  // it each pass. The guard makes a no-op pass touch no DOM at all.
+  if (omoBar.parentElement !== bar.parentElement || omoBar.nextElementSibling !== bar) bar.before(omoBar);
 
+  // apply() puts the toggle in whichever bar the state calls for.
   apply();
 }
 
