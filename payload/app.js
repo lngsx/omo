@@ -67,9 +67,9 @@ let dock;
 let form;
 
 // Our bar. It sits directly beside OpenCode's touch bar and holds our quick
-// actions; the composer toggle is its first and, for now, only child. It starts
-// empty and stays hidden by CSS until folding applies, so the app never sees an
-// empty strip on a desktop or the landing screen.
+// actions: the color scheme switch leads it, and the composer toggle closes it. It
+// starts empty and stays hidden by CSS until folding applies, so the app never
+// sees an empty strip on a desktop or the landing screen.
 const omoBar = document.createElement("div");
 
 omoBar.setAttribute(BAR_ATTRIBUTE, "");
@@ -180,6 +180,103 @@ document.addEventListener("focusout", (event) => {
   }, 0);
 });
 
+// ---------------------------------------------------------------------------
+// Color scheme switch (light / dark / system)
+// ---------------------------------------------------------------------------
+
+// The app keeps the color scheme in localStorage and paints everything from it:
+// the theme's CSS variables, `data-color-scheme` on <html>, the page background,
+// and the browser chrome's theme-color. There is no server setting and no API,
+// so writing this key and telling the running app is the whole feature.
+const SCHEME_KEY = "opencode-color-scheme";
+
+// The modes in the order the segments show. "system" is also what the app falls
+// back to for a key it does not recognise, so our reading below matches its own.
+const SCHEME_MODES = ["light", "dark", "system"];
+
+const COLOR_SCHEME_ATTRIBUTE = "data-omo-color-scheme";
+const COLOR_SCHEME_SEGMENT_ATTRIBUTE = "data-omo-color-scheme-segment";
+
+// Drawings, not a sprite reference: OpenCode's icon catalog has no sun and no
+// moon, and borrowing one of its symbols while drawing the others beside it
+// shows at 16px. These are Tabler's 24-unit grid at stroke-width 1.5, which a
+// 16px box scales to the 1px stroke OpenCode's own icons use (their paths set no
+// width and inherit 1). Only the `<path>` children are kept.
+const SCHEME_FACES = {
+  light: `<path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7"/>`,
+  dark: `<path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008"/>`,
+  system: `<path d="M3 5a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1v-10"/><path d="M7 20h10"/><path d="M9 16v4"/><path d="M15 16v4"/>`,
+};
+
+const SCHEME_LABELS = { light: "Light", dark: "Dark", system: "System" };
+
+// The group holds the three segments and nothing else; the bar puts it at its
+// front, opposite the composer prompt.
+const colorSchemeGroup = document.createElement("div");
+
+colorSchemeGroup.setAttribute(COLOR_SCHEME_ATTRIBUTE, "");
+
+// One segment per mode, each asking for its own mode from a closure.
+// preventDefault on mousedown keeps focus where it is, the same trick the
+// composer toggle uses so a tap does not dismiss the phone keyboard.
+function colorSchemeSegment(mode) {
+  const segment = document.createElement("button");
+
+  segment.type = "button";
+  segment.setAttribute(COLOR_SCHEME_SEGMENT_ATTRIBUTE, mode);
+  segment.setAttribute("aria-label", SCHEME_LABELS[mode]);
+  segment.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SCHEME_FACES[mode]}</svg>`;
+
+  segment.addEventListener("mousedown", (event) => event.preventDefault());
+  segment.addEventListener("click", () => setScheme(mode));
+
+  return segment;
+}
+
+colorSchemeGroup.append(...SCHEME_MODES.map(colorSchemeSegment));
+
+// The stored preference, read the way the app reads it: anything that is not
+// light or dark means System, so the highlight always has a segment to sit on.
+function readScheme() {
+  const stored = localStorage.getItem(SCHEME_KEY);
+
+  return stored === "light" || stored === "dark" ? stored : "system";
+}
+
+// Change the mode for the running app. The app follows `storage` events to keep
+// other tabs in sync, but a browser never sends one to the tab that wrote the
+// key, so we dispatch it ourselves. Its handler then repaints the theme tokens
+// and <html data-color-scheme>: no reload, and the key persists for next time.
+function setScheme(scheme) {
+  if (readScheme() === scheme) return;
+
+  localStorage.setItem(SCHEME_KEY, scheme);
+
+  window.dispatchEvent(new StorageEvent("storage", { key: SCHEME_KEY, newValue: scheme }));
+
+  syncColorSchemeGroup();
+}
+
+// Paint the segment matching storage. `aria-pressed` is what assistive tech
+// announces and also what the CSS colours, so one attribute carries both jobs.
+// Written only where it differs, because the observer calls this on every pass.
+function syncColorSchemeGroup() {
+  const scheme = readScheme();
+
+  for (const segment of colorSchemeGroup.children) {
+    const pressed = String(segment.getAttribute(COLOR_SCHEME_SEGMENT_ATTRIBUTE) === scheme);
+
+    if (segment.getAttribute("aria-pressed") !== pressed) segment.setAttribute("aria-pressed", pressed);
+  }
+}
+
+// The app can change the scheme from its own Settings page, which mutates
+// nothing the observer below watches. Any tap is a chance it happened, so
+// re-read the one key afterwards. Captured rather than bubbled, so a control
+// that stops propagation cannot swallow the trigger; deferred a task, because
+// the app writes the setting inside its own click handler.
+document.addEventListener("click", () => setTimeout(syncColorSchemeGroup, 0), true);
+
 // The bar and the composer mount long after this payload runs, and they are
 // torn down and rebuilt on navigation, so we look for them on changes instead
 // of polling. Cached nodes keep the common pass down to a few property reads.
@@ -218,6 +315,14 @@ function reconcile() {
   // on navigation, which would strand our bar wherever it was, so we re-anchor
   // it each pass. The guard makes a no-op pass touch no DOM at all.
   if (omoBar.parentElement !== bar.parentElement || omoBar.nextElementSibling !== bar) bar.before(omoBar);
+
+  // The color scheme switch leads our bar and the composer prompt keeps the end.
+  // Prepending a node that already leads is still a move, so guard it like the
+  // anchor above.
+  if (omoBar.firstElementChild !== colorSchemeGroup) omoBar.prepend(colorSchemeGroup);
+
+  // A pass is also the cheapest moment to re-check what the app has stored.
+  syncColorSchemeGroup();
 
   // apply() puts the toggle in whichever bar the state calls for.
   apply();

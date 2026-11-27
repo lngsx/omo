@@ -27,3 +27,7 @@ _Avoid_: rewriting, patching
 **Pass-through**:
 A response forwarded to the client byte-for-byte as the upstream sent it. Everything that is not HTML and not a payload route is pass-through.
 _Avoid_: untouched response, direct forwarding
+
+**Color scheme switch**:
+The three-segment light/dark/system control in the omo bar. It changes OpenCode's color scheme, which lives in the browser, not its theme, which is the palette — two separate settings on the same Appearance tab.
+_Avoid_: theme switch, mode switch

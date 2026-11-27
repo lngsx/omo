@@ -47,11 +47,13 @@ html[data-omo-composer="collapsed"] [data-slot="composer-touch-bar"] {
   color: inherit;
 }
 
-/* Shows only while folded, and lays its children out to the right edge, so the
-   toggle lands where their bar's chevron sits: at the end. */
+/* Shows only while folded, and pushes its two children apart: the color scheme
+   switch holds the leading edge, the composer toggle the trailing one, where
+   their bar's chevron used to sit. (Open, our bar is hidden and holds the
+   switch alone, which this same rule then pins left.) */
 html[data-omo-composer="collapsed"] [data-omo-bar] {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
 }
 
 /* The toggle: a regular-size button, wide enough for its text and chevron — not
@@ -108,4 +110,44 @@ html[data-omo-composer="open"] [data-omo-composer-toggle]:hover {
 html[data-omo-composer="collapsed"] [data-omo-face="collapse"],
 html[data-omo-composer="open"] [data-omo-face="composer"] {
   display: none;
+}
+
+/* ── Color scheme switch (light / dark / system) ─────────────────────────────
+   Three segments at the front of the omo bar, one per mode. A tap writes the
+   key OpenCode paints from and nudges the running app with a `storage` event,
+   so this is a real change of mode, not a restyle. `aria-pressed` carries both
+   the state assistive tech announces and the look: the active segment takes the
+   same surface as the folded composer prompt, so the two read as siblings. */
+
+[data-omo-color-scheme] {
+  display: flex;
+  align-items: center;
+
+  /* 0.125rem: tight enough that the three read as one group, well inside the
+     bar's own 0.25rem gap. */
+  gap: 0.125rem;
+
+  /* The bar lays its children apart; the switch keeps its own width. */
+  flex: none;
+}
+
+/* 1.75rem square: the bar's height, so the group fills it edge to edge. */
+[data-omo-color-scheme-segment] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+
+  /* 0.75rem: their rounded-xl, the radius the bar's buttons use. */
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--v2-text-text-faint, currentColor);
+}
+
+[data-omo-color-scheme-segment][aria-pressed="true"] {
+  background: var(--v2-background-bg-layer-01, rgb(128 128 128 / 0.12));
+  color: var(--v2-text-text-base, currentColor);
 }

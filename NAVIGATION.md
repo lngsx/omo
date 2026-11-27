@@ -96,13 +96,16 @@ files:
   - - payload/app.js
     - Injected JavaScript, served at /__omo/app.js
     - light
-    - purpose: The JS half of the payload. Swaps the composer's Enter and Shift+Enter (Enter adds a line, Shift+Enter sends), folds the session composer into a compact bar on touch devices, and on foregrounding compares its baked-in version with /__omo/version, silently reloading once if omo has a newer payload.
+    - purpose: The JS half of the payload. Adds a color scheme switch to the omo bar, swaps the composer's Enter and Shift+Enter (Enter adds a line, Shift+Enter sends), folds the session composer into a compact bar on touch devices, and on foregrounding compares its baked-in version with /__omo/version, silently reloading once if omo has a newer payload.
       key_concepts:
+        - color scheme switch writes `opencode-color-scheme` and dispatches a synthetic `storage` event, because browsers never send one to the tab that wrote it
+        - the app's stored preference is the only state; nothing is shadowed in a variable
+        - segments carry `aria-pressed`, which the CSS also colours
         - Enter newline / Shift+Enter send via a capture-phase keydown (preventDefault + stopPropagation beats the app's bubble-phase handler)
         - submitting by clicking [data-action="composer-submit"] instead of calling app internals
         - suggestion popover defers the key to the app; touch keyboards unchanged
         - collapsible composer on touch devices
-        - omo bar (data-omo-bar) takes turns with OpenCode's touch bar; the composer toggle is its first child
+        - omo bar (data-omo-bar) takes turns with OpenCode's touch bar; the color scheme switch leads it and the composer toggle closes it
         - one toggle node re-parented by state between the omo bar and OpenCode's bar
         - inline chevron-up path because OpenCode's sprite has no chevron-up symbol
         - touch bar as the phone detector (coarse pointer, no width query)
@@ -117,9 +120,10 @@ files:
   - - payload/app.css
     - Payload stylesheet, served at /__omo/app.css
     - light
-    - purpose: The CSS half of the payload. First rule: pointer cursor on links/buttons, not-allowed on disabled buttons. Then the folded and open looks of the collapsible composer, keyed off `data-omo-composer` on <html> so nothing applies on desktop or the landing screen.
+    - purpose: The CSS half of the payload. First rule: pointer cursor on links/buttons, not-allowed on disabled buttons. Then the color scheme switch inside the omo bar, and the folded and open looks of the collapsible composer, keyed off `data-omo-composer` on <html> so nothing applies on desktop or the landing screen.
       key_concepts:
         - state carried by a single attribute on <html>
+        - color scheme segments styled off `aria-pressed`, so one attribute serves a11y and paint
         - hiding the composer form without hiding the docks beside it
         - omo bar shown only while folded, carrying the docked bar's background, top border, and safe-area inset
         - one toggle button, two faces picked by state
