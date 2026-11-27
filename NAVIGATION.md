@@ -96,8 +96,9 @@ files:
   - - payload/app.js
     - Injected JavaScript, served at /__omo/app.js
     - light
-    - purpose: The JS half of the payload. Adds a color scheme switch to the omo bar, swaps the composer's Enter and Shift+Enter (Enter adds a line, Shift+Enter sends), folds the session composer into a compact bar on touch devices, and on foregrounding compares its baked-in version with /__omo/version, silently reloading once if omo has a newer payload.
+    - purpose: The JS half of the payload. Adds a color scheme switch to both the omo bar and the session header (one group each, from a factory), swaps the composer's Enter and Shift+Enter (Enter adds a line, Shift+Enter sends), folds the session composer into a compact bar on touch devices, and on foregrounding compares its baked-in version with /__omo/version, silently reloading once if omo has a newer payload.
       key_concepts:
+        - two switch copies from one factory; the omo bar holds one, the session header's title row holds the other, and syncColorSchemeGroup paints both
         - color scheme switch writes `opencode-color-scheme` and dispatches a synthetic `storage` event, because browsers never send one to the tab that wrote it
         - the app's stored preference is the only state; nothing is shadowed in a variable
         - segments carry `aria-pressed`, which the CSS also colours
@@ -120,7 +121,7 @@ files:
   - - payload/app.css
     - Payload stylesheet, served at /__omo/app.css
     - light
-    - purpose: The CSS half of the payload. First rule: pointer cursor on links/buttons, not-allowed on disabled buttons. Then the color scheme switch inside the omo bar, and the folded and open looks of the collapsible composer, keyed off `data-omo-composer` on <html> so nothing applies on desktop or the landing screen.
+    - purpose: The CSS half of the payload. First rule: pointer cursor on links/buttons, not-allowed on disabled buttons. Then the color scheme switch (same styles for both its copies), and the folded and open looks of the collapsible composer, keyed off `data-omo-composer` on <html> so the composer rules apply only where folding does.
       key_concepts:
         - state carried by a single attribute on <html>
         - color scheme segments styled off `aria-pressed`, so one attribute serves a11y and paint

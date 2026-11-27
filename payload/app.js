@@ -58,6 +58,10 @@ const COMPOSER = 'form[data-component="composer"]';
 const COMPOSER_FORM = `[data-slot="composer-face"] ${COMPOSER}`;
 const EDITOR = '[data-component="composer-editor"]';
 
+// The session header's title row; it holds the second switch copy on wide
+// screens, whether or not a touch bar is present.
+const HEADER_TITLE = ".session-header-title";
+
 // Memory only: a page load starts folded, and so does a newly mounted composer.
 let expanded = false;
 
@@ -210,12 +214,6 @@ const SCHEME_FACES = {
 
 const SCHEME_LABELS = { light: "Light", dark: "Dark", system: "System" };
 
-// The group holds the three segments and nothing else; the bar puts it at its
-// front, opposite the composer prompt.
-const colorSchemeGroup = document.createElement("div");
-
-colorSchemeGroup.setAttribute(COLOR_SCHEME_ATTRIBUTE, "");
-
 // One segment per mode, each asking for its own mode from a closure.
 // preventDefault on mousedown keeps focus where it is, the same trick the
 // composer toggle uses so a tap does not dismiss the phone keyboard.
@@ -233,7 +231,27 @@ function colorSchemeSegment(mode) {
   return segment;
 }
 
-colorSchemeGroup.append(...SCHEME_MODES.map(colorSchemeSegment));
+// One switch group, built from scratch so two independent copies can exist: one
+// leads the omo bar, one trails the session header's title row. Each copy carries
+// its own buttons and listeners; only the stored preference is shared, through
+// syncColorSchemeGroup below.
+function createColorSchemeGroup() {
+  const group = document.createElement("div");
+
+  group.setAttribute(COLOR_SCHEME_ATTRIBUTE, "");
+  group.append(...SCHEME_MODES.map(colorSchemeSegment));
+
+  return group;
+}
+
+// Two homes, one group each. Both stay put on their own, so an absent bar or
+// header simply hides its copy instead of needing the node moved around.
+const barGroup = createColorSchemeGroup();
+const headerGroup = createColorSchemeGroup();
+const groups = [barGroup, headerGroup];
+
+// The session header's title row, cached between reconcile passes like `bar`.
+let header;
 
 // The stored preference, read the way the app reads it: anything that is not
 // light or dark means System, so the highlight always has a segment to sit on.
@@ -257,16 +275,19 @@ function setScheme(scheme) {
   syncColorSchemeGroup();
 }
 
-// Paint the segment matching storage. `aria-pressed` is what assistive tech
-// announces and also what the CSS colours, so one attribute carries both jobs.
-// Written only where it differs, because the observer calls this on every pass.
+// Paint every copy's segments from the one stored preference. `aria-pressed` is
+// what assistive tech announces and also what the CSS colours, so one attribute
+// carries both jobs. Written only where it differs, because the observer calls
+// this on every pass.
 function syncColorSchemeGroup() {
   const scheme = readScheme();
 
-  for (const segment of colorSchemeGroup.children) {
-    const pressed = String(segment.getAttribute(COLOR_SCHEME_SEGMENT_ATTRIBUTE) === scheme);
+  for (const group of groups) {
+    for (const segment of group.children) {
+      const pressed = String(segment.getAttribute(COLOR_SCHEME_SEGMENT_ATTRIBUTE) === scheme);
 
-    if (segment.getAttribute("aria-pressed") !== pressed) segment.setAttribute("aria-pressed", pressed);
+      if (segment.getAttribute("aria-pressed") !== pressed) segment.setAttribute("aria-pressed", pressed);
+    }
   }
 }
 
@@ -281,6 +302,21 @@ document.addEventListener("click", () => setTimeout(syncColorSchemeGroup, 0), tr
 // torn down and rebuilt on navigation, so we look for them on changes instead
 // of polling. Cached nodes keep the common pass down to a few property reads.
 function reconcile() {
+  // The session header is a home for a copy whenever it is on screen, which is a
+  // wide window regardless of pointer or composer state. Anchor it first, so a
+  // desktop (no touch bar at all) still gets its switch.
+  if (!header?.isConnected) header = document.querySelector(HEADER_TITLE);
+
+  // Park the copy at the row's trailing edge. The flex-1 drag gap is the row's
+  // last child, so "after the gap" is just "at the end" — one case, no gap
+  // lookup. The guard keeps a no-op pass from re-inserting the node.
+  if (header && header.lastElementChild !== headerGroup) header.append(headerGroup);
+
+  // A pass is also the cheapest moment to re-check what the app has stored, and
+  // it runs before the composer returns below so the header copy is painted even
+  // on a desktop, which has no bar at all.
+  syncColorSchemeGroup();
+
   if (!bar?.isConnected) bar = document.querySelector(TOUCH_BAR);
 
   // No bar: a desktop, or OpenCode unmounted the composer (a permission prompt
@@ -319,19 +355,17 @@ function reconcile() {
   // The color scheme switch leads our bar and the composer prompt keeps the end.
   // Prepending a node that already leads is still a move, so guard it like the
   // anchor above.
-  if (omoBar.firstElementChild !== colorSchemeGroup) omoBar.prepend(colorSchemeGroup);
-
-  // A pass is also the cheapest moment to re-check what the app has stored.
-  syncColorSchemeGroup();
+  if (omoBar.firstElementChild !== barGroup) omoBar.prepend(barGroup);
 
   // apply() puts the toggle in whichever bar the state calls for.
   apply();
 }
 
-// Only a few changes matter: the bar arriving or leaving, the dock mounting or
-// unmounting, and the form being replaced. Every streamed token is ignored, so
-// the timeline can mutate as much as it likes without costing us a scan.
-const MIGHT_MATTER = `${TOUCH_BAR}, ${SESSION_DOCK}, ${COMPOSER}`;
+// Only a few changes matter: the header arriving or leaving, the bar arriving or
+// leaving, the dock mounting or unmounting, and the form being replaced. Every
+// streamed token is ignored, so the timeline can mutate as much as it likes
+// without costing us a scan.
+const MIGHT_MATTER = `${HEADER_TITLE}, ${TOUCH_BAR}, ${SESSION_DOCK}, ${COMPOSER}`;
 
 function mightMatter(records) {
   return records.some((record) =>

@@ -113,11 +113,13 @@ html[data-omo-composer="open"] [data-omo-face="composer"] {
 }
 
 /* ── Color scheme switch (light / dark / system) ─────────────────────────────
-   Three segments at the front of the omo bar, one per mode. A tap writes the
-   key OpenCode paints from and nudges the running app with a `storage` event,
-   so this is a real change of mode, not a restyle. `aria-pressed` carries both
-   the state assistive tech announces and the look: the active segment takes the
-   same surface as the folded composer prompt, so the two read as siblings. */
+   Three segments per group, one per mode. A copy sits at the front of the omo
+   bar and another at the trailing edge of the session header's title row, so the
+   switch is reachable with and without the bottom bar. A tap writes the key OpenCode
+   paints from and nudges the running app with a `storage` event, so this is a
+   real change of mode, not a restyle. `aria-pressed` carries both the state
+   assistive tech announces and the look: the active segment takes the same
+   surface as the folded composer prompt, so the two read as siblings. */
 
 [data-omo-color-scheme] {
   display: flex;
@@ -145,6 +147,14 @@ html[data-omo-composer="open"] [data-omo-face="composer"] {
   border-radius: 0.75rem;
   background: transparent;
   color: var(--v2-text-text-faint, currentColor);
+}
+
+/* The header's own controls light up under the pointer; idle segments follow so
+   the switch matches its surroundings. Declared before the pressed rule, which
+   then still wins while the active segment is hovered. */
+[data-omo-color-scheme-segment]:hover {
+  background: var(--v2-overlay-simple-overlay-hover, rgb(128 128 128 / 0.12));
+  color: var(--v2-text-text-base, currentColor);
 }
 
 [data-omo-color-scheme-segment][aria-pressed="true"] {
