@@ -49,16 +49,19 @@ function omoAsset(type: string, body: string): Response {
 const server = Bun.serve({
   port: PORT,
 
-  async fetch(req) {
-    // Our own payload routes. Checked before forwarding so omo can answer
-    //    them itself; everything else still has no route of its own. The
-    //    Browser Loader in <head> always requests these exact paths.
-    const { pathname } = new URL(req.url);
-    if (pathname === "/__omo/app.css") return omoAsset("text/css; charset=utf-8", appCss);
-    if (pathname === "/__omo/app.js") return omoAsset("text/javascript; charset=utf-8", payloadJs);
-    if (pathname === "/__omo/version") return omoAsset("text/plain; charset=utf-8", version);
+  // Our own payload routes. Bun matches these BEFORE fetch ever runs, so the
+  //    proxy below never sees them. Handlers (not static Responses) on purpose:
+  //    static routes get Bun's automatic ETag/304 caching, and this payload's
+  //    whole trick is cache-control: no-store — nothing may answer for us.
+  routes: {
+    "/__omo/app.css": () => omoAsset("text/css; charset=utf-8", appCss),
+    "/__omo/app.js": () => omoAsset("text/javascript; charset=utf-8", payloadJs),
+    "/__omo/version": () => omoAsset("text/plain; charset=utf-8", version),
+  },
 
-    // Everything else goes to upstream first.
+  // Only requests no route matched land here. This is the proxy, nothing else.
+  async fetch(req) {
+    // Everything goes to upstream first.
     const upstream = await forward(req, UPSTREAM);
 
     // Non-HTML responses pass through untouched (and stay streamed).
