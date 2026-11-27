@@ -96,8 +96,11 @@ files:
   - - payload/app.js
     - Injected JavaScript, served at /__omo/app.js
     - light
-    - purpose: The JS half of the payload. Folds the session composer into a compact bar on touch devices, and on foregrounding compares its baked-in version with /__omo/version, silently reloading once if omo has a newer payload.
+    - purpose: The JS half of the payload. Swaps the composer's Enter and Shift+Enter (Enter adds a line, Shift+Enter sends), folds the session composer into a compact bar on touch devices, and on foregrounding compares its baked-in version with /__omo/version, silently reloading once if omo has a newer payload.
       key_concepts:
+        - Enter newline / Shift+Enter send via a capture-phase keydown (preventDefault + stopPropagation beats the app's bubble-phase handler)
+        - submitting by clicking [data-action="composer-submit"] instead of calling app internals
+        - suggestion popover defers the key to the app; touch keyboards unchanged
         - collapsible composer on touch devices
         - touch bar as the phone detector (coarse pointer, no width query)
         - folding only the composer form, never the wrapper holding permission docks

@@ -202,4 +202,55 @@ new MutationObserver((records) => {
   if (mightMatter(records)) reconcile();
 }).observe(document.documentElement, { childList: true, subtree: true });
 
+// ---------------------------------------------------------------------------
+// Enter adds a line, Shift+Enter sends
+// ---------------------------------------------------------------------------
+
+// Upstream, in packages/app/src/composer/editor/editor.tsx:
+// - the input is a contenteditable div, not a textarea;
+// - plain Enter sends, Shift+Enter has no handler and just makes a newline.
+//
+// How we take over:
+// - its keydown reaches the document root in the bubble phase, so a capture
+//   listener there runs first and stopPropagation keeps the app from seeing it;
+// - sending = clicking the real submit button, so its guards still run;
+// - a new line = insertLineBreak, the app's own command on touch keyboards.
+
+// A plain attribute the app leaves on the send button, and all we need from it.
+const SUBMIT = '[data-action="composer-submit"]';
+
+// Only in the DOM while the "@" or "/" list is open, where Enter picks the
+// highlighted item. Leave the key to the app then.
+const SUGGESTIONS = '[data-component="composer-suggestions"]';
+
+document.addEventListener("keydown", (event) => {
+  // Real keypresses only, so a synthetic event can never feed back in.
+  if (!event.isTrusted) return;
+  if (event.key !== "Enter") return;
+
+  // Enter confirming an IME candidate picks a word, not a command.
+  if (event.isComposing || event.keyCode === 229) return;
+  if (document.querySelector(SUGGESTIONS)) return;
+
+  if (!(event.target instanceof Element) || !event.target.closest(EDITOR)) return;
+
+  // Cmd/Ctrl+Enter and Alt+Enter are the app's own submit variants; keep them.
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (event.shiftKey) {
+    // A phone's composer form has no send button; sending happens in its touch
+    // bar, so fall back to a document-wide lookup.
+    const submit = event.target.closest(COMPOSER)?.querySelector(SUBMIT) ?? document.querySelector(SUBMIT);
+
+    submit?.click();
+
+    return;
+  }
+
+  document.execCommand("insertLineBreak");
+}, true);
+
 reconcile();
